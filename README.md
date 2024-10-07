@@ -1,8 +1,8 @@
 # Sistema de Chat em Rede Utilizando Sockets TCP/IP em C
 ### Desenvolvedores:
 
-Gabriel Sotto Rodrigues - 11800952
-Henrique Carobolante Parro - 11917987
+- Gabriel Sotto Rodrigues - 11800952
+- Henrique Carobolante Parro - 11917987
 
 ### Descrição do Projeto:
 
