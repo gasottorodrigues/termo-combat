@@ -14,7 +14,7 @@ int main(int argc, char *argv[])
 
     while (inExec)
     {
-        showMainMenu();
+        gx_mainMenu();
         scanf("%d", &cmd);
 
         switch (cmd)
@@ -35,4 +35,6 @@ int main(int argc, char *argv[])
             break;
         }
     }
+
+    gx_exit();
 }

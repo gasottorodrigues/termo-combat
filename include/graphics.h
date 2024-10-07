@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "../include/constants.h"
 
-void showMainMenu();
+void gx_mainMenu();
+void gx_exit();
 
 #endif
