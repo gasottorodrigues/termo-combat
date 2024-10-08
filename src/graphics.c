@@ -84,3 +84,8 @@ void gx_Score(const int p1Score, const int p2Score)
 {
     printf("> Pontuação - Player 1: %d | Player 2: %d\n", p1Score, p2Score);
 }
+
+void gx_createdLobby()
+{
+    printf("> Sala criada com sucesso!\n");
+}

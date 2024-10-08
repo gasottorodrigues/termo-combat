@@ -21,4 +21,6 @@ void gx_endMatch(const char player);
 
 void gx_Score(const int p1Score, const int p2Score);
 
+void gx_createdLobby();
+
 #endif
