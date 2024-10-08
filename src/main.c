@@ -6,11 +6,13 @@
 
 #include "../include/constants.h"
 #include "../include/graphics.h"
+#include "../include/gameEngine.h"
 
 int main(int argc, char *argv[])
 {
     int cmd;
-    int inExec = TRUE;
+    bool inExec = true;
+    gameStateType *state;
 
     while (inExec)
     {
@@ -20,9 +22,12 @@ int main(int argc, char *argv[])
         switch (cmd)
         {
         case CMD_EXIT:
-            inExec = FALSE;
+            egn_endGame(state);
+            inExec = false;
             break;
         case CMD_HOST:
+            state = egn_setGameState();
+            egn_startMatch(state);
             break;
 
         case CMD_JOIN:
