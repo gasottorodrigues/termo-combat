@@ -10,37 +10,42 @@
 
 typedef struct
 {
+    int scoreToWin;
+    int wordSize;
+    int nPlayers;
+    int triesPerRound;
+
     bool isMatchRunning;
-    bool isRoundRunning;
+    bool isRoundRunnig;
+    bool isWordSet;
+    bool isInScoreCalc;
 
-    char playerTurn;
+    int currRound;
+    int currWriterId;
+    int *playersScore;
 
-    int p1Score;
-    int p2Score;
-
-    char p1Word[5];
-    char p1CurrGuess[5];
-    int p1Tries;
-
-    char p2Word[5];
-    char p2CurrGuess[5];
-    int p2Tries;
-
+    char *word;
 } gameStateType;
 
 typedef struct
 {
-    bool isRightGuess;
-    char word[6];
+    int numOfTries;
+    bool correctAns;
+} playerGuessesResultType;
+
+typedef struct
+{
+    bool result;
+    char *visualRes;
 } guessResult;
 
-gameStateType *egn_setGameState();
+gameStateType *game_setupGameState(int scoreToWin, int wordSize, int nPlayers, int triesPerRound);
+void game_freeGameState(gameStateType *state);
+void game_chooseWord(gameStateType *state);
 
-void egn_setWord(gameStateType *state, char player);
-void egn_printGameState(const gameStateType *state);
-
-void egn_startMatch(gameStateType *state);
-void egn_roundLooping(gameStateType *state);
-void egn_endGame(gameStateType *state);
-
+playerGuessesResultType game_tryGuesses(gameStateType *state);
+void game_calculateRoundPoints(gameStateType *state, int playerStateId, int numOfTries, bool correctAns);
+void game_calculateWriterPoints(gameStateType *state, int numOfCorrectTries, int totalWrongs);
+int game_isGameEnded(gameStateType *state);
+void game_setNextWriter(gameStateType *state);
 #endif

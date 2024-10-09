@@ -1,51 +1,60 @@
 #include "../include/gameEngine.h"
 
-gameStateType *egn_setGameState()
+gameStateType *game_setupGameState(int scoreToWin, int wordSize, int nPlayers, int triesPerRound)
 {
     gameStateType *newGame = (gameStateType *)malloc(sizeof(gameStateType));
 
-    newGame->playerTurn = '1';
-
-    memset(newGame->p1Word, ' ', sizeof(newGame->p1Word));
-    memset(newGame->p1CurrGuess, ' ', sizeof(newGame->p1CurrGuess));
-    newGame->p1Tries = 0;
-    newGame->p1Score = 0;
-
-    memset(newGame->p2Word, ' ', sizeof(newGame->p2Word));
-    memset(newGame->p2CurrGuess, ' ', sizeof(newGame->p2CurrGuess));
-    newGame->p2Tries = 0;
-    newGame->p2Score = 0;
+    newGame->scoreToWin = scoreToWin;
+    newGame->wordSize = wordSize;
+    newGame->nPlayers = nPlayers;
+    newGame->triesPerRound = triesPerRound;
 
     newGame->isMatchRunning = false;
-    newGame->isRoundRunning = false;
+    newGame->isRoundRunnig = false;
+    newGame->isWordSet = false;
+    newGame->isInScoreCalc = true;
+    newGame->currRound = 0;
+    newGame->currWriterId = 1;
+
+    newGame->playersScore = (int *)calloc(nPlayers, sizeof(int));
+    newGame->word = (char *)malloc((wordSize + 1) * sizeof(char));
+
+    for (int i = 0; i < wordSize; i++)
+    {
+        newGame->word[i] = '-';
+    }
+    newGame->word[wordSize] = '\0';
 
     return newGame;
 }
 
-void egn_endGame(gameStateType *state)
+void game_freeGameState(gameStateType *state)
 {
     if (state != NULL)
     {
+        free(state->playersScore);
+        free(state->word);
+
         free(state);
-        state = NULL;
     }
 }
 
-void egn_setWord(gameStateType *state, char player)
+void game_chooseWord(gameStateType *state)
 {
-    char input[6];
+    char input[state->wordSize + 1];
     bool valid = false;
 
     while (!valid)
     {
+        printf("Escolha uma palavra de %d letras: ", state->wordSize);
 
-        gx_setWord(player);
-        scanf("%5s", input);
-        getchar();
+        // Limitar o número de caracteres lidos para evitar buffer overflow
+        scanf("%s", input);
+        getchar(); // Consumir o caractere de nova linha deixado pelo scanf
 
-        if (strlen(input) != 5)
+        if (strlen(input) != state->wordSize)
         {
-            gx_setWordError();
+            printf("Sua palavra está errada. Tente novamente.\n");
         }
         else
         {
@@ -53,162 +62,148 @@ void egn_setWord(gameStateType *state, char player)
         }
     }
 
-    for (int i = 0; i < 5; i++)
+    // Converter a palavra para letras maiúsculas
+    for (int i = 0; i < state->wordSize; i++)
     {
         input[i] = toupper(input[i]);
     }
 
-    if (player == '1')
-    {
-        strncpy(state->p2Word, input, 5);
-        return;
-    }
-
-    strncpy(state->p1Word, input, 5);
+    // Copiar a palavra para o estado do jogo e garantir que seja terminada com '\0'
+    strncpy(state->word, input, state->wordSize);
+    state->word[state->wordSize] = '\0';
 }
 
-void egn_startMatch(gameStateType *state)
+guessResult game_validateGuess(char *word, char *guess)
 {
-    gx_startMatch();
-    state->isMatchRunning = true;
-    while (state->isMatchRunning)
+    guessResult retval;
+    int wordLen = strlen(word);
+
+    // Aloca memória para o visualRes, incluindo o caractere nulo no final
+    retval.visualRes = (char *)malloc((wordLen + 1) * sizeof(char));
+
+    // Inicializa o resultado como verdadeiro, mas será ajustado se houver diferenças
+    retval.result = true;
+
+    // Arrays para marcar letras já usadas
+    bool *usedInWord = (bool *)malloc((wordLen + 1) * sizeof(bool));
+    ;                                                                 // Para marcar letras já usadas em 'word'
+    bool *usedInGuess = (bool *)malloc((wordLen + 1) * sizeof(bool)); // Para marcar letras já usadas em 'guess'
+
+    // Primeira passagem: verifica as correspondências exatas (letras na posição correta)
+    for (int i = 0; i < wordLen; i++)
     {
-        gx_Score(state->p1Score, state->p2Score);
-        egn_setWord(state, '1');
-        egn_setWord(state, '2');
-
-        egn_roundLooping(state);
-
-        if (state->p1Score == 2)
+        if (guess[i] == word[i])
         {
-            gx_endMatch('1');
-            state->isMatchRunning = false;
-        }
-        else if (state->p2Score == 2)
-        {
-            gx_endMatch('2');
-            state->isMatchRunning = false;
-        }
-    }
-}
-
-void egn_setGuess(gameStateType *state)
-{
-    char input[6];
-    bool valid = false;
-
-    while (!valid)
-    {
-        state->playerTurn == '1' ? gx_setGuess(state->playerTurn, state->p1Tries + 1) : gx_setGuess(state->playerTurn, state->p2Tries + 1);
-
-        scanf("%5s", input);
-        getchar();
-
-        if (strlen(input) != 5)
-        {
-            gx_setWordError();
+            retval.visualRes[i] = 'o'; // Letra correta na posição correta
+            usedInWord[i] = true;      // Marca a letra como usada em 'word'
+            usedInGuess[i] = true;     // Marca a letra como usada em 'guess'
         }
         else
         {
-            valid = true;
+            retval.result = false; // Se houver qualquer diferença, o resultado é falso
         }
     }
 
-    for (int i = 0; i < 5; i++)
+    // Segunda passagem: verifica as correspondências parciais (letras corretas na posição errada)
+    for (int i = 0; i < wordLen; i++)
     {
-        input[i] = toupper(input[i]);
-    }
-
-    state->playerTurn == '1' ? strncpy(state->p1CurrGuess, input, 5) : strncpy(state->p2CurrGuess, input, 5);
-}
-
-guessResult egn_validateGuess(gameStateType *state)
-{
-    guessResult result;
-
-    char wordCopy[5];
-    char currentGuess[5];
-
-    if (state->playerTurn == '1')
-    {
-        strcpy(wordCopy, state->p1Word);
-        strcpy(currentGuess, state->p1CurrGuess);
-    }
-    else
-    {
-        strcpy(wordCopy, state->p2Word);
-        strcpy(currentGuess, state->p2CurrGuess);
-    }
-
-    result.isRightGuess = true;
-    for (int i = 0; i < 5; i++)
-    {
-        result.word[i] = 'x';
-    }
-
-    for (int i = 0; i < 5; i++)
-    {
-        if (currentGuess[i] == wordCopy[i])
+        if (!usedInGuess[i]) // Se a letra ainda não foi usada
         {
-            result.word[i] = 'o';
-            wordCopy[i] = '-';
-            currentGuess[i] = '.';
-        }
-        else
-        {
-            result.isRightGuess = false;
-        }
-    }
-
-    for (int i = 0; i < 5; i++)
-    {
-        if (result.word[i] == 'o')
-        {
-            continue;
-        }
-        for (int j = 0; j < 5; j++)
-        {
-            if (currentGuess[i] == wordCopy[j])
+            bool found = false;
+            for (int j = 0; j < wordLen; j++)
             {
-                result.word[i] = '-';
-                wordCopy[j] = '-';
-                break;
+                if (!usedInWord[j] && guess[i] == word[j])
+                {
+                    retval.visualRes[i] = '-'; // Letra correta na posição errada
+                    usedInWord[j] = true;      // Marca a letra como usada em 'word'
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                retval.visualRes[i] = 'x'; // Letra não encontrada em 'word'
             }
         }
     }
 
-    return result;
+    free(usedInGuess);
+    free(usedInWord);
+
+    // Adiciona o caractere nulo ao final da string visualRes
+    retval.visualRes[wordLen] = '\0';
+
+    return retval;
 }
 
-void egn_roundLooping(gameStateType *state)
+playerGuessesResultType game_tryGuesses(gameStateType *state)
 {
-    gx_startRound(state->p1Score + state->p2Score);
-    state->isRoundRunning = true;
-    while (state->isRoundRunning)
+    int maxTries = state->triesPerRound;
+    playerGuessesResultType res;
+    res.numOfTries = 0;
+    res.correctAns = false;
+
+    char input[state->wordSize];
+
+    while (!res.correctAns && res.numOfTries <= maxTries)
     {
-        egn_setGuess(state);
-        guessResult guessRes = egn_validateGuess(state);
+        res.numOfTries++;
 
-        state->playerTurn == '1' ? gx_showGuessResult(state->p1CurrGuess, guessRes.word) : gx_showGuessResult(state->p2CurrGuess, guessRes.word);
+        bool valid = false;
+        while (!valid)
+        {
+            printf("Tentativa %d! Tente adivinha a palavra: ", res.numOfTries);
+            scanf("%5s", input);
+            getchar();
 
-        if (guessRes.isRightGuess)
-        {
-            state->isRoundRunning = false;
-            state->playerTurn == '1' ? state->p1Score++ : state->p2Score++;
-            gx_endRound(state->playerTurn);
-        }
-        else
-        {
-            if (state->playerTurn == '1')
+            if (strlen(input) != state->wordSize)
             {
-                state->p1Tries++;
-                state->playerTurn = '2';
+                printf("Tamanho errado. A palavra tem %d letras.\n", state->wordSize);
             }
             else
             {
-                state->p2Tries++;
-                state->playerTurn = '1';
+                valid = true;
             }
         }
+
+        guessResult guessResult = game_validateGuess(state->word, input);
+        res.correctAns = guessResult.result;
+        gx_showGuessResult(input, guessResult.visualRes);
+        free(guessResult.visualRes);
+    }
+
+    return res;
+}
+
+void game_calculateRoundPoints(gameStateType *state, int playerStateId, int numOfTries, bool correctAns)
+{
+    int totalRoundPoints = correctAns ? state->triesPerRound - numOfTries + 1 : 0;
+    state->playersScore[playerStateId] += totalRoundPoints;
+}
+
+void game_calculateWriterPoints(gameStateType *state, int numOfCorrectTries, int totalWrongs)
+{
+    int totalRoundPoints = totalWrongs * state->triesPerRound + numOfCorrectTries - 1;
+    state->playersScore[state->currWriterId - 1] += totalRoundPoints;
+}
+
+int game_isGameEnded(gameStateType *state)
+{
+    for (int i = 0; i < state->nPlayers; i++)
+    {
+        if (state->playersScore[i] >= state->scoreToWin)
+            return i + 1;
+    }
+
+    return 0;
+}
+
+void game_setNextWriter(gameStateType *state)
+{
+    state->currWriterId++;
+
+    if (state->currWriterId > state->nPlayers)
+    {
+        state->currWriterId = 1;
     }
 }

@@ -1,34 +1,113 @@
 #include "../include/client.h"
 
-int cli_connectToLobby()
+clientBufferType *cli_setupConnBuffer()
 {
-    int sock = 0;
-    struct sockaddr_in serv_addr;
+    clientBufferType *connBuffer = (clientBufferType *)malloc(sizeof(clientBufferType));
 
-    // Criar socket
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) == ERROR)
+    connBuffer->playerId = NO_CONN;
+    connBuffer->state = NULL;
+
+    return connBuffer;
+}
+
+void cli_freeConnBuffer(clientBufferType *connData)
+{
+    if (connData != NULL)
     {
-        perror("Erro ao criar socket");
-        return -1;
+        game_freeGameState(connData->state);
+        free(connData);
+    }
+}
+
+int cli_connectToLobby(char *ip, clientBufferType *connBuffer)
+{
+
+    int cliSocket = socket(AF_INET, SOCK_STREAM, 0);
+
+    if (cliSocket == ERROR)
+    {
+        gx_printError("nao foi possivel criar o socket.");
+        exit(EXIT_FAILURE);
     }
 
-    // Definir endereço do servidor
-    serv_addr.sin_family = AF_INET;   // IPv4
-    serv_addr.sin_port = htons(PORT); // Definir a porta 8080
+    struct sockaddr_in serverAddr;
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(PORT);
 
-    // Converter endereço IPv4 e IPv6 de texto para binário
-    if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0)
+    if (inet_pton(AF_INET, ip, &serverAddr.sin_addr) <= 0)
     {
-        perror("Endereço inválido/ Endereço não suportado");
-        return -1;
+        gx_printError("endereco de ip nao suportado.");
+        exit(EXIT_FAILURE);
     }
 
-    // Conectar ao servidor
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == ERROR)
+    printf("iniciando conexao...\n");
+    int connStatus = connect(cliSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
+    if (connStatus == ERROR)
     {
-        perror("Erro ao conectar ao servidor");
-        return -1;
+        gx_printError("nao foi possivel conectar ao servidor.");
+        exit(EXIT_FAILURE);
     }
 
-    return sock;
+    matchConfigType match;
+    recv(cliSocket, &match, sizeof(matchConfigType), 0);
+
+    connBuffer->playerId = match.playerId;
+    connBuffer->state = game_setupGameState(match.scoreToWin, match.wordSize, match.nPlayers, match.triesPerRound);
+    return cliSocket;
+}
+
+void cli_playerHandler(int socket, clientBufferType *connData)
+{
+    gameStateType *state = connData->state;
+    printf("Aguardando inicio da partida...\n");
+    recv(socket, &(connData->state->isMatchRunning), sizeof(bool), 0);
+
+    printf("Partida Iniciada! Voce e o jogador %d\n", connData->playerId);
+    while (state->isMatchRunning)
+    {
+        recv(socket, &(state->isRoundRunnig), sizeof(bool), 0);
+        if (state->currWriterId == connData->playerId)
+        {
+            game_chooseWord(state);
+            printf("Palavra definida: %s\n", state->word);
+            state->isWordSet = true;
+            send(socket, state->word, sizeof(state->word), 0);
+        }
+        else
+        {
+            printf("Aguardando palavra...\n");
+            recv(socket, state->word, state->wordSize + 1 * sizeof(char), 0);
+            printf("Palavra recebida! %s\n", state->word);
+
+            playerGuessesResultType res = game_tryGuesses(state);
+            if (res.correctAns)
+            {
+                printf("Boa!\n");
+            }
+            else
+            {
+                printf("Suas chances acabaram. Que pena...\n");
+            }
+
+            send(socket, &res, sizeof(playerGuessesResultType), 0);
+        }
+
+        printf("Espere até que todos tenham respondido...\n");
+
+        recv(socket, state->playersScore, state->nPlayers * sizeof(int), 0);
+        printf("Pontuacao recebida!");
+
+        int winner;
+        recv(socket, &winner, sizeof(int), 0);
+
+        if (!winner)
+        {
+            game_setNextWriter(state);
+        }
+        else
+        {
+            state->isMatchRunning = false;
+        }
+    }
+    printf("Temos um vencedor. Partida encerrada.\n");
 }

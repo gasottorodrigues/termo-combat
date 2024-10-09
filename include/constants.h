@@ -11,8 +11,10 @@
 #define ERROR -1
 #define SUCCESS 0
 
-#define PORT 8080
+#define PORT 9002
 #define BACKLOG 5
-#define BUFFER_SIZE 5
+
+#define BUFFER_SIZE 1024
+#define NO_CONN -1
 
 #endif
