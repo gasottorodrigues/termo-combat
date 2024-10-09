@@ -1,5 +1,14 @@
 #include "../include/server.h"
 
+/**
+ * @brief Função que gerencia o host (jogador principal) durante a partida.
+ *
+ * Esta função é executada em uma thread separada para o host. Ela controla o fluxo da partida para o host,
+ * incluindo a escolha de palavras e a espera pelas respostas dos outros jogadores.
+ *
+ * @param args Argumentos da thread, que incluem o estado do lobby e o ID do jogador.
+ * @return NULL
+ */
 void *srv_hostHandler(void *args)
 {
 
@@ -17,34 +26,36 @@ void *srv_hostHandler(void *args)
         while (!state->isRoundRunnig)
             ;
 
+        gx_startRound(state->playersScore, state->nPlayers, playerId);
         if (state->currWriterId == playerId)
         {
+
+            printf("Voce escolhe a palavra nessa rodada.\n");
             game_chooseWord(state);
             pthread_mutex_lock(&lobby->lobbyMutex);
             state->isWordSet = true;
             pthread_mutex_unlock(&lobby->lobbyMutex);
 
+            printf("Sua palavra foi definida\n");
+            printf("Aguardando respostas dos usuários...\n");
             while (state->isInScoreCalc)
                 ;
-            int winner = game_isGameEnded(state);
-            if (winner)
-            {
-                printf("host:Temos um vencedor!\n");
-            }
         }
         else
         {
+            printf("O jogador %d esta escolhendo a palavra...\n", state->currWriterId);
             while (!state->isWordSet)
                 ;
 
+            printf("Palavra definida! hora de adivinhar.\n");
             playerGuessesResultType guess = game_tryGuesses(state);
             if (guess.correctAns)
             {
-                printf("Boa!\n");
+                printf("Boa! Agora vamos esperar os demais jogadores...\n");
             }
             else
             {
-                printf("Suas chances acabaram. Que pena...\n");
+                printf("Que pena :( Agora vamos esperar os demais jogadores...\n");
             }
 
             playerLastguess->correctAns = guess.correctAns;
@@ -53,21 +64,30 @@ void *srv_hostHandler(void *args)
 
             while (state->isInScoreCalc)
                 ;
+        }
 
-            int winner = game_isGameEnded(state);
-            if (winner)
-            {
-                printf("host:Temos um vencedor!\n");
-            }
+        printf("Respostas recebidas!\n");
+        gx_showPoints(state->playersScore, state->nPlayers);
+        int winner = game_isGameEnded(state);
+        if (winner)
+        {
+            printf("Jogador %d venceu a partida!\n", winner);
         }
     }
-
-    printf("thread %d: encerrando atividades.\n", playerId);
 
     pthread_exit(NULL);
     return NULL;
 }
 
+/**
+ * @brief Função que gerencia a comunicação com um cliente (jogador) durante a partida.
+ *
+ * Esta função é executada em uma thread separada para cada cliente. Ela lida com a comunicação via socket,
+ * recebendo e enviando dados entre o servidor e o cliente, como a palavra escolhida e as tentativas de adivinhação.
+ *
+ * @param args Argumentos da thread, que incluem o socket do cliente e o estado do lobby.
+ * @return NULL
+ */
 void *srv_clientSocketHandler(void *args)
 {
     threadArgsType *threadArgs = (threadArgsType *)args;
@@ -80,19 +100,19 @@ void *srv_clientSocketHandler(void *args)
     char buffer[BUFFER_SIZE];
     ssize_t bytesRead;
 
-    printf("thread %d: aguardando inicio da partida.\n", playerId);
+    // printf removido
     while (!state->isMatchRunning)
         ;
 
     while (state->isMatchRunning)
     {
-        printf("thread %d: aguardando inicio do round.\n", playerId);
+        // printf removido
         while (!state->isRoundRunnig)
             ;
 
         if (state->currWriterId == playerId)
         {
-            printf("client: lendo resposta do player %d\n", playerId);
+            // printf removido
             bytesRead = recv(clientSocket, &buffer, sizeof(state->word), 0);
             if (bytesRead == 0)
             {
@@ -122,7 +142,7 @@ void *srv_clientSocketHandler(void *args)
                 pthread_exit(NULL);
             }
 
-            printf("thread %d: palavra recebida %s \n", playerId, buffer);
+            // printf removido
             pthread_mutex_lock(&lobby->lobbyMutex);
             strncpy(state->word, buffer, state->wordSize);
             state->word[state->wordSize] = '\0';
@@ -134,14 +154,14 @@ void *srv_clientSocketHandler(void *args)
         }
         else
         {
-            printf("thread %d: aguardando palavra\n", playerId);
+            // printf removido
             while (!state->isWordSet)
                 ;
 
-            printf("thread %d: palavra recebida %s\n", playerId, state->word);
+            // printf removido
             send(clientSocket, state->word, state->wordSize + 1 * sizeof(char), 0);
 
-            printf("thread %d: aguardando resposta\n", playerId);
+            // printf removido
             playerGuessesResultType guess;
             bytesRead = recv(clientSocket, &guess, sizeof(playerGuessesResultType), 0);
             if (bytesRead == 0)
@@ -185,7 +205,18 @@ void *srv_clientSocketHandler(void *args)
     pthread_exit(NULL);
     return NULL;
 }
-
+/**
+ * @brief Configura o lobby do servidor para uma nova partida.
+ *
+ * Inicializa o estado do lobby, configura o socket do servidor e prepara o ambiente para que os jogadores
+ * possam se conectar e iniciar a partida.
+ *
+ * @param scoreToWin Pontuação necessária para vencer a partida.
+ * @param wordSize Tamanho da palavra a ser adivinhada.
+ * @param nPlayers Número de jogadores na partida.
+ * @param triesPerRound Número de tentativas permitidas por rodada.
+ * @return Ponteiro para a estrutura de configuração do lobby.
+ */
 lobbyConfigState *srv_setupLobby(int scoreToWin, int wordSize, int nPlayers, int triesPerRound)
 {
     int serverSocket;
@@ -239,6 +270,13 @@ lobbyConfigState *srv_setupLobby(int scoreToWin, int wordSize, int nPlayers, int
     return conn;
 }
 
+/**
+ * @brief Fecha o lobby e desconecta todos os jogadores.
+ *
+ * Fecha todas as conexões de socket dos jogadores e do servidor, e libera os recursos associados ao lobby.
+ *
+ * @param lobby Ponteiro para a estrutura de configuração do lobby.
+ */
 void srv_closeLobby(lobbyConfigState *lobby)
 {
     for (int i = 0; i < lobby->state->nPlayers; i++)
@@ -250,7 +288,13 @@ void srv_closeLobby(lobbyConfigState *lobby)
     srv_closeConnection(lobby->serverSocket);
     srv_freeLobby(lobby);
 }
-
+/**
+ * @brief Libera a memória associada ao lobby.
+ *
+ * Libera os recursos alocados para o lobby, incluindo o estado do jogo, os sockets dos clientes e o mutex.
+ *
+ * @param lobby Ponteiro para a estrutura de configuração do lobby.
+ */
 void srv_freeLobby(lobbyConfigState *lobby)
 {
     if (lobby != NULL)
@@ -261,12 +305,27 @@ void srv_freeLobby(lobbyConfigState *lobby)
         free(lobby);
     }
 }
-
+/**
+ * @brief Fecha uma conexão de socket.
+ *
+ * Fecha o socket especificado, encerrando a comunicação com o cliente ou servidor.
+ *
+ * @param connRef Referência para o socket a ser fechado.
+ */
 void srv_closeConnection(int connRef)
 {
     close(connRef);
 }
-
+/**
+ * @brief Envia dados para todos os clientes conectados no lobby.
+ *
+ * Envia os dados especificados para todos os clientes conectados, utilizando o socket de cada cliente.
+ * Se a conexão com algum cliente falhar, o cliente é desconectado.
+ *
+ * @param lobby Ponteiro para a estrutura de configuração do lobby.
+ * @param data Dados a serem enviados.
+ * @param size Tamanho dos dados a serem enviados.
+ */
 void srv_broadcast(lobbyConfigState *lobby, void *data, long size)
 {
     for (int i = 0; i < lobby->nConn; i++)
@@ -280,7 +339,7 @@ void srv_broadcast(lobbyConfigState *lobby, void *data, long size)
             if (result == -1)
             {
                 perror("Erro ao enviar dados para o cliente");
-                printf("Cliente no socket %d desconectado.\n", lobby->clientSocket[i]);
+                // printf removido
 
                 srv_closeConnection(lobby->clientSocket[i]);
                 lobby->clientSocket[i] = NO_CONN;
@@ -288,7 +347,16 @@ void srv_broadcast(lobbyConfigState *lobby, void *data, long size)
         }
     }
 }
-
+/**
+ * @brief Cria threads para gerenciar a comunicação com os clientes.
+ *
+ * Para cada cliente conectado, cria uma thread que gerencia a comunicação via socket, recebendo e enviando
+ * dados durante a partida.
+ *
+ * @param lobby Ponteiro para a estrutura de configuração do lobby.
+ * @param threads Array de threads a serem criadas.
+ * @param threadArgs Argumentos para as threads, incluindo o socket do cliente e o estado do lobby.
+ */
 void srv_createClientThreads(lobbyConfigState *lobby, pthread_t *threads, threadArgsType *threadArgs)
 {
     for (int i = 1; i <= lobby->nConn; i++)
@@ -307,6 +375,15 @@ void srv_createClientThreads(lobbyConfigState *lobby, pthread_t *threads, thread
     }
 }
 
+/**
+ * @brief Cria uma thread para gerenciar o host (jogador principal).
+ *
+ * Cria uma thread separada para o host, que será responsável por escolher a palavra e gerenciar o fluxo da partida.
+ *
+ * @param lobby Ponteiro para a estrutura de configuração do lobby.
+ * @param threads Array de threads a serem criadas.
+ * @param threadArgs Argumentos para a thread do host, incluindo o estado do lobby.
+ */
 void srv_createHostThread(lobbyConfigState *lobby, pthread_t *threads, threadArgsType *threadArgs)
 {
     threadArgs[0].cliSocket = NO_CONN;
@@ -322,8 +399,19 @@ void srv_createHostThread(lobbyConfigState *lobby, pthread_t *threads, threadArg
     }
 }
 
+/**
+ * @brief Aguarda a conexão de todos os jogadores no lobby.
+ *
+ * Aceita conexões de novos jogadores até que todos os jogadores necessários estejam conectados.
+ * Após todos os jogadores entrarem, inicia a partida.
+ *
+ * @param lobby Ponteiro para a estrutura de configuração do lobby.
+ * @return Ponteiro para os argumentos das threads criadas para cada jogador.
+ */
 threadArgsType *srv_waitForPlayers(lobbyConfigState *lobby)
 {
+    printf("Aguardando novos jogadores...\n");
+
     matchConfigType match;
     match.playerId = -1;
     match.scoreToWin = lobby->state->scoreToWin;
@@ -350,13 +438,15 @@ threadArgsType *srv_waitForPlayers(lobbyConfigState *lobby)
             match.playerId = lobby->nConn + 2;
             send(newSocket, &match, sizeof(matchConfigType), 0);
 
-            printf("Jogador conectado!\n");
+            printf("Jogador %d conectado.\n", match.playerId);
+
             lobby->clientSocket[lobby->nConn] = newSocket;
             lobby->nConn++;
         }
     }
+    printf("Todos os jogadores já entraram. Iniciando partida...\n");
 
-    printf("Gerando lista de threads..\n");
+    // printf removido
     int threadListSize = lobby->nConn + 1;
     pthread_t *threads = (pthread_t *)malloc(threadListSize * sizeof(pthread_t));
     if (threads == NULL)
@@ -379,20 +469,15 @@ threadArgsType *srv_waitForPlayers(lobbyConfigState *lobby)
     return threadArgs;
 }
 
-void printIntList(int *list, int size)
-{
-    printf("[");
-    for (int i = 0; i < size; i++)
-    {
-        printf("%d", list[i]);
-        if (i < size - 1)
-        {
-            printf(", "); // Adiciona uma vírgula e espaço entre os elementos
-        }
-    }
-    printf("]\n");
-}
-
+/**
+ * @brief Loop principal do jogo, gerenciando as rodadas e o fluxo da partida.
+ *
+ * Controla o início e o fim de cada rodada, calcula os pontos dos jogadores e verifica se a partida terminou.
+ * Envia atualizações para todos os jogadores conectados.
+ *
+ * @param lobby Ponteiro para a estrutura de configuração do lobby.
+ * @param threadVars Argumentos das threads criadas para cada jogador.
+ */
 void srv_gameLoop(lobbyConfigState *lobby, threadArgsType *threadVars)
 {
     gameStateType *state = lobby->state;
@@ -407,7 +492,7 @@ void srv_gameLoop(lobbyConfigState *lobby, threadArgsType *threadVars)
         lobby->state->isRoundRunnig = true;
         state->isInScoreCalc = true;
 
-        printf("server: aguardando escolha da palavra...\n");
+        // printf removido
         while (!state->isWordSet)
             ;
         // srv_broadcast(lobby, &(lobby->state->isRoundRunnig), sizeof(bool));
@@ -432,19 +517,19 @@ void srv_gameLoop(lobbyConfigState *lobby, threadArgsType *threadVars)
         }
 
         pthread_mutex_lock(&lobby->lobbyMutex);
-        printf("server: calculando pontuacao.\n");
+        // printf removido
         int totalTries = 0;
         int totalWrong = 0;
         for (int i = 0; i < state->nPlayers; i++)
         {
-            if (state->currWriterId == i + 1)
+            if (state->currWriterId == threadVars[i].playerId)
             {
                 continue;
             }
 
             if (threadVars[i].guessesReceived)
             {
-                game_calculateRoundPoints(state, i, threadVars[i].guess->numOfTries, threadVars[i].guess->correctAns);
+                game_calculateRoundPoints(state, threadVars[i].playerId - 1, threadVars[i].guess->numOfTries, threadVars[i].guess->correctAns);
                 if (threadVars[i].guess->correctAns)
                 {
                     totalTries += threadVars[i].guess->numOfTries;
@@ -460,7 +545,6 @@ void srv_gameLoop(lobbyConfigState *lobby, threadArgsType *threadVars)
             }
         }
         game_calculateWriterPoints(state, totalTries, totalWrong);
-        printf("server: Pontuação calculada.\n");
         state->isRoundRunnig = false;
         state->isWordSet = false;
         state->isInScoreCalc = false;
@@ -474,7 +558,7 @@ void srv_gameLoop(lobbyConfigState *lobby, threadArgsType *threadVars)
         if (!winner)
         {
             game_setNextWriter(state);
-            printf("server: Proximo leitor definido: %d\n.", state->currWriterId);
+            // printf removido
         }
         else
         {

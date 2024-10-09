@@ -1,5 +1,13 @@
 #include "../include/client.h"
 
+/**
+ * @brief Configura e inicializa um buffer de conexão do cliente.
+ *
+ * Aloca memória para um buffer de conexão do cliente e inicializa
+ * os campos `playerId` e `state` com valores padrão.
+ *
+ * @return Ponteiro para o buffer de conexão inicializado.
+ */
 clientBufferType *cli_setupConnBuffer()
 {
     clientBufferType *connBuffer = (clientBufferType *)malloc(sizeof(clientBufferType));
@@ -10,6 +18,14 @@ clientBufferType *cli_setupConnBuffer()
     return connBuffer;
 }
 
+/**
+ * @brief Libera a memória associada ao buffer de conexão do cliente.
+ *
+ * Libera a memória alocada para o estado do jogo e o buffer de conexão
+ * do cliente, se não forem nulos.
+ *
+ * @param connData Ponteiro para o buffer de conexão do cliente a ser liberado.
+ */
 void cli_freeConnBuffer(clientBufferType *connData)
 {
     if (connData != NULL)
@@ -19,9 +35,19 @@ void cli_freeConnBuffer(clientBufferType *connData)
     }
 }
 
+/**
+ * @brief Conecta o cliente ao lobby do servidor.
+ *
+ * Estabelece uma conexão TCP com o servidor usando o endereço IP fornecido.
+ * Recebe a configuração da partida e inicializa o estado do jogo no buffer
+ * de conexão do cliente.
+ *
+ * @param ip Endereço IP do servidor.
+ * @param connBuffer Ponteiro para o buffer de conexão do cliente.
+ * @return O descritor de socket da conexão estabelecida.
+ */
 int cli_connectToLobby(char *ip, clientBufferType *connBuffer)
 {
-
     int cliSocket = socket(AF_INET, SOCK_STREAM, 0);
 
     if (cliSocket == ERROR)
@@ -56,46 +82,59 @@ int cli_connectToLobby(char *ip, clientBufferType *connBuffer)
     return cliSocket;
 }
 
+/**
+ * @brief Gerencia a interação do jogador durante a partida.
+ *
+ * Controla o fluxo de uma partida, incluindo a escolha de palavras,
+ * adivinhações e o envio/recebimento de dados entre o cliente e o servidor.
+ * Atualiza o estado do jogo e exibe informações relevantes ao jogador.
+ *
+ * @param socket Descritor de socket da conexão com o servidor.
+ * @param connData Ponteiro para o buffer de conexão do cliente.
+ */
 void cli_playerHandler(int socket, clientBufferType *connData)
 {
     gameStateType *state = connData->state;
-    printf("Aguardando inicio da partida...\n");
     recv(socket, &(connData->state->isMatchRunning), sizeof(bool), 0);
 
-    printf("Partida Iniciada! Voce e o jogador %d\n", connData->playerId);
+    printf("Voce e o jogador %d...\n", connData->playerId);
+    printf("Aguardando o inicio da partida...\n");
     while (state->isMatchRunning)
     {
+        gx_startRound(state->playersScore, state->nPlayers, connData->playerId);
         recv(socket, &(state->isRoundRunnig), sizeof(bool), 0);
         if (state->currWriterId == connData->playerId)
         {
+            printf("Voce escolhe a palavra nessa rodada.\n");
             game_chooseWord(state);
-            printf("Palavra definida: %s\n", state->word);
             state->isWordSet = true;
             send(socket, state->word, sizeof(state->word), 0);
+
+            printf("Sua palavra foi definida\n");
+            printf("Aguardando respostas dos usuários...\n");
         }
         else
         {
-            printf("Aguardando palavra...\n");
+            printf("O jogador %d esta escolhendo a palavra...\n", state->currWriterId);
             recv(socket, state->word, state->wordSize + 1 * sizeof(char), 0);
-            printf("Palavra recebida! %s\n", state->word);
 
+            printf("Palavra definida! hora de adivinhar.\n");
             playerGuessesResultType res = game_tryGuesses(state);
             if (res.correctAns)
             {
-                printf("Boa!\n");
+                printf("Boa! Agora vamos esperar os demais jogadores...\n");
             }
             else
             {
-                printf("Suas chances acabaram. Que pena...\n");
+                printf("Que pena :( Agora vamos esperar os demais jogadores...\n");
             }
 
             send(socket, &res, sizeof(playerGuessesResultType), 0);
         }
 
-        printf("Espere até que todos tenham respondido...\n");
-
         recv(socket, state->playersScore, state->nPlayers * sizeof(int), 0);
-        printf("Pontuacao recebida!");
+        printf("Respostas recebidas!\n");
+        gx_showPoints(state->playersScore, state->nPlayers);
 
         int winner;
         recv(socket, &winner, sizeof(int), 0);
@@ -106,8 +145,11 @@ void cli_playerHandler(int socket, clientBufferType *connData)
         }
         else
         {
+            printf("Jogador %d venceu a partida!\n", winner);
             state->isMatchRunning = false;
         }
     }
-    printf("Temos um vencedor. Partida encerrada.\n");
+
+    printf("Digite qualquer tecla para continuar.\n");
+    getchar();
 }

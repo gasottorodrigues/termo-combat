@@ -5,41 +5,99 @@ const char *yellow = "\033[0;33m";
 const char *red = "\033[0;31m";
 const char *reset = "\033[0m";
 
+/**
+ * @brief Exibe uma mensagem de erro formatada em vermelho.
+ *
+ * @param err String contendo a mensagem de erro a ser exibida.
+ */
 void gx_printError(char *err)
 {
     printf("%sERRO:%s%s\n", red, err, reset);
 }
 
-// void gx_mainMenu()
-// {
-//     printf("=========== TERMO COMBAT ===========\n\n");
+/**
+ * @brief Exibe o menu principal do jogo, com opções para criar sala, entrar em sala ou sair do jogo.
+ */
+void gx_mainMenu()
+{
+    system("clear");
+    printf("=========== TERMO COMBAT ===========\n\n");
 
-//     printf("%d - Criar uma sala\n", CMD_HOST);
-//     printf("%d - Entrar em uma sala\n", CMD_JOIN);
-//     printf("%d - Como jogar\n\n", CMD_TUT);
-//     printf("%d - Sair do jogo\n\n", CMD_EXIT);
-// }
+    printf("%d - Criar uma sala\n", CMD_HOST);
+    printf("%d - Entrar em uma sala\n", CMD_JOIN);
+    printf("%d - Sair do jogo\n\n", CMD_EXIT);
 
-// void gx_exit()
-// {
-//     printf("\nObrigado por jogar. Encerrando...\n");
-// }
+    printf("Acesse a opcao desejada: ");
+}
 
-// void gx_setWord(const char player)
-// {
-//     printf("> Players %c | Escolha a palavra de 5 letras para seu adversário adivinhar: ", player);
-// }
+/**
+ * @brief Exibe a interface para criar uma sala (lobby) e coleta as configurações da sala.
+ *
+ * @param s Ponteiro para armazenar a pontuação necessária para ganhar.
+ * @param w Ponteiro para armazenar o tamanho das palavras.
+ * @param p Ponteiro para armazenar o número de jogadores.
+ * @param t Ponteiro para armazenar o número de tentativas para adivinhar.
+ */
+void gx_createLobby(int *s, int *w, int *p, int *t)
+{
+    system("clear");
+    printf("=========== TERMO COMBAT ===========\n\n");
+    printf("Criando uma sala\n");
+    printf(">Defina a pontuacao para ganhar: ");
+    scanf("%d", s);
+    printf(">Defina o tamanho das palavras: ");
+    scanf("%d", w);
+    printf(">Defina o numero de tentativas para adivinhar: ");
+    scanf("%d", t);
+    printf(">Defina o numero de jogadores: ");
+    scanf("%d", p);
+}
 
-// void gx_setWordError()
-// {
-//     printf("> Erro: A palavra deve ter exatamente 5 letras. Tente novamente.\n");
-// }
+/**
+ * @brief Exibe a interface de início de rodada, mostrando a pontuação atual de cada jogador.
+ *
+ * @param points Array contendo as pontuações dos jogadores.
+ * @param nPlayers Número total de jogadores.
+ * @param playerId ID do jogador atual.
+ */
+void gx_startRound(int *points, int const nPlayers, int playerId)
+{
+    system("clear");
+    printf("=========== TERMO COMBAT ===========\n\n");
+    printf("Voce e o jogador %d\n", playerId);
+    printf("Pontuacao:\n");
 
-// void gx_setGuess(const char player, const int try)
-// {
-//     printf("> Turno do Player %c | Tentativa %d: ", player, try);
-// }
+    for (int i = 0; i < nPlayers; i++)
+    {
+        printf("P%d:%d\t", i + 1, points[i]);
+    }
+    printf("\n");
+}
 
+/**
+ * @brief Exibe a pontuação de todos os jogadores no final de uma rodada.
+ *
+ * @param points Array contendo as pontuações dos jogadores.
+ * @param nPlayers Número total de jogadores.
+ */
+void gx_showPoints(int *points, int const nPlayers)
+{
+    system("clear");
+    printf("Pontuacao no fim da Rodada:\n");
+
+    for (int i = 0; i < nPlayers; i++)
+    {
+        printf("P%d:%d\t", i + 1, points[i + 1]);
+    }
+    printf("\n");
+}
+
+/**
+ * @brief Exibe o resultado da tentativa de adivinhar uma palavra, com cores indicando o acerto.
+ *
+ * @param guess String contendo a palavra adivinhada.
+ * @param result String contendo o resultado da adivinhação ('o' para correto, '-' para posição incorreta, 'x' para incorreto).
+ */
 void gx_showGuessResult(const char *guess, const char *result)
 {
     printf("Resultado: ");
@@ -63,33 +121,3 @@ void gx_showGuessResult(const char *guess, const char *result)
     }
     printf("\n");
 }
-
-// void gx_startRound(const int roundCounter)
-// {
-//     printf("COMEÇANDO A RODADA %d\n", roundCounter);
-// }
-
-// void gx_endRound(const char player)
-// {
-//     printf("> Fim da rodada. O Player %c venceu!\n", player);
-// }
-
-// void gx_startMatch()
-// {
-//     printf("COMEÇANDO A PARTIDA\n");
-// }
-
-// void gx_endMatch(const char player)
-// {
-//     printf("PARTIDA FINALIZADA! O PLAYER %c VENCEU A MD3!\n", player);
-//     printf("> Pressione qualquer tecla para voltar ao menu.\n");
-//     getchar();
-// }
-// void gx_Score(const int p1Score, const int p2Score)
-// {
-//     printf("> Pontuação - Player 1: %d | Player 2: %d\n", p1Score, p2Score);
-// }
-// void gx_createdLobby()
-// {
-//     printf("> Sala criada com sucesso!\n");
-// }

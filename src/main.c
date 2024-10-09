@@ -13,35 +13,77 @@
 int main(int argc, char *argv[])
 {
 
-    int buffer;
-    printf("1- servidor | 2- cliente: ");
-    scanf("%d", &buffer);
+    int cmd;
+    bool inExec = true;
 
-    if (buffer == 1)
+    while (inExec)
     {
-        lobbyConfigState *lobby = srv_setupLobby(10, 5, 3, 4);
-        printf("Aguardando conexao de todos os jogadores...\n");
-        threadArgsType *threadVars = srv_waitForPlayers(lobby);
-        srv_gameLoop(lobby, threadVars);
-        srv_closeLobby(lobby);
-        return 0;
+        gx_mainMenu();
+        scanf("%d", &cmd);
+        switch (cmd)
+        {
+        case CMD_EXIT:
+            inExec = false;
+            break;
+        case CMD_HOST:
+            int score, wSize, nPlayers, tries;
+            gx_createLobby(&score, &wSize, &nPlayers, &tries);
+            lobbyConfigState *lobby = srv_setupLobby(score, wSize, nPlayers, tries);
+            printf("Servidor criado com sucesso!\n");
+            threadArgsType *threadVars = srv_waitForPlayers(lobby);
+            srv_gameLoop(lobby, threadVars);
+            printf("Digite qualquer tecla para continuar.\n");
+            getchar();
+            srv_closeLobby(lobby);
+            break;
+
+        case CMD_JOIN:
+            char ip[16];
+            printf("Insira o IP da sala: ");
+            scanf("%16s", ip);
+
+            printf("Tentando entrar...\n");
+            clientBufferType *connData = cli_setupConnBuffer();
+            int cliSocket = cli_connectToLobby(ip, connData);
+            printf("Voce entrou na partida!\n");
+
+            cli_playerHandler(cliSocket, connData);
+            srv_closeConnection(cliSocket);
+            cli_freeConnBuffer(connData);
+            break;
+
+        default:
+            break;
+        }
     }
-    else
-    {
-        char ip[16];
-        printf("IP: ");
-        scanf("%16s", ip);
 
-        clientBufferType *connData = cli_setupConnBuffer();
-        int cliSocket = cli_connectToLobby(ip, connData);
-        printf("Conexao realizada com sucesso.\n");
+    // int buffer;
+    // printf("1- servidor | 2- cliente: ");
+    // scanf("%d", &buffer);
 
-        cli_playerHandler(cliSocket, connData);
-        srv_closeConnection(cliSocket);
-        cli_freeConnBuffer(connData);
+    // if (buffer == 1)
+    // {
+    //     lobbyConfigState *lobby = srv_setupLobby(10, 5, 3, 4);
+    //     printf("Aguardando conexao de todos os jogadores...\n");
+    //     threadArgsType *threadVars = srv_waitForPlayers(lobby);
+    //     return 0;
+    // }
+    // else
+    // {
+    //     char ip[16];
+    //     printf("IP: ");
+    //     scanf("%16s", ip);
 
-        return 0;
-    }
+    //     clientBufferType *connData = cli_setupConnBuffer();
+    //     int cliSocket = cli_connectToLobby(ip, connData);
+    //     printf("Conexao realizada com sucesso.\n");
+
+    //     cli_playerHandler(cliSocket, connData);
+    //     srv_closeConnection(cliSocket);
+    //     cli_freeConnBuffer(connData);
+
+    //     return 0;
+    // }
 
     // int cmd;
     // bool inExec = true;
